@@ -15,16 +15,9 @@ require(topicmodels)
 require(RWeka)
 
 
-
-
-
-
-
 news24 <- httpGET("http://www.news24.com/",curl = getCurlHandle())
 
-
 read.date <- Sys.Date() 
-
 
 link.locations <- gregexpr(format(read.date, "%Y%m%d"), news24, ignore.case = T)
 
@@ -44,70 +37,71 @@ article.link[i] <- substring(SA.articles[i], gregexpr("www", SA.articles[i], ign
 
 article.link <- unique(article.link)
 
-grepl("live", article.link, ignore.case = T)
+#article names
+article.name <- as.character()
+for (i in 1:length(article.link)) {
+  article.name[i] <- gsub("-", " ", substring(article.link[i],max(gregexpr("/", article.link[i])[[1]])+1, nchar(article.link[i])-9))
+  
+}
+
+
 # removes all the Live articles. still need to figure that shit out
 article.link <- article.link[!grepl("live", article.link, ignore.case = T)]
 
+# downloads all the articles
 for (i in 1:length(article.link)) {
   article[i] <- httpGET(paste("http://", article.link[i], sep = ""),curl = getCurlHandle())
 }
 
 
 
-
+#cleans up all the articles
 article.body <- array()
-
 for (i in 1:length(article.link)){
-article.body[i] <- substring(article[i], gregexpr("article-body", article[i], ignore.case =T), gregexpr("</article>", article[i], ignore.case =T))
-article.body[i] <- strsplit(article.body[[i]], "<")
-a <- article.body[i][[1]][!grepl(">", substring(article.body[i][[1]], nchar(article.body[i][[1]]), nchar(article.body[i][[1]])))]
-a <- a[!grepl("javascript",a)]
-a <- substring(a, regexpr(">", a)+1, nchar(a))
-a <- gsub("\"", "", a)
-a <- gsub("\n", "", a)
-article.body[i] <- paste(a, collapse = "")
+  
+  #finds the article body
+  article.body[i] <- substring(article[i], gregexpr("article-body", article[i], ignore.case =T), gregexpr("</article>", article[i], ignore.case =T))
+  
+  #finds all the HTML parts and removes them
+  article.body[i] <- strsplit(article.body[[i]], "<")
+  a <- article.body[i][[1]][!grepl(">", substring(article.body[i][[1]], nchar(article.body[i][[1]]), nchar(article.body[i][[1]])))]
+  a <- a[!grepl("javascript",a)]
+  a <- substring(a, regexpr(">", a)+1, nchar(a))
+  a <- gsub("\"", "", a)
+  a <- gsub("\n", "", a)
+  article.body[i] <- paste(a, collapse = "")
+  
+  #removes the location where article was written
+  article.body[i] <- substring(article.body[i], min(gregexpr("-", article.body[i])[[1]]) + 2, nchar(article.body[i]))
+
 }
 
-#comments <- tm_map(comments , removeWords, c("please","airport","bial","will","can"))
 
+
+
+# text analysis starts here
 article.tm <- Corpus(VectorSource(article.body))
-article.tm <- tm_map(article.tm, removeWords, c("the", "and", "that"))
+
+tdm <- TermDocumentMatrix(article.tm)
+
+article.tm <- tm_map(article.tm, removeWords, stopwords("en"))
+article.tm <- tm_map(article.tm, removeWords, c("&lsquo;", "&rsquo;", "&ldquo;", "&ldquo;", "&ndash", "said"))
+article.tm <- tm_map(article.tm, removePunctuation)
 article.tm <- tm_map(article.tm, stripWhitespace)
 article.tm <- tm_map(article.tm, removePunctuation)
 article.tm <- tm_map(article.tm, removeNumbers)
 
+tdm <- TermDocumentMatrix(article.tm)
+tdm <- as.matrix(tdm)  
 
+j <- 2
 
+v <- sort(tdm[,j], decreasing = T)
+article.name[j]
+wordcloud(names(v),v,c(4,.2), min.freq = 2, 100)
 
-wordcloud(article.tm)
-# 
-# comments <- Corpus(DirSource(dataPath,pattern=".csv"),list(reader=readPlain))
-# #'
-# comments <- tm_map(comments , stripWhitespace)
-# #'
-# comments <- tm_map(comments, content_transformer(tolower))
-# #'
-# comments <- tm_map(comments , removePunctuation)
-# #'
-# comments <- tm_map(comments ,removeNumbers)
-# #'
-# comments <- tm_map(comments , removeWords, stopwords("english"))
-# comments <- tm_map(comments , removeWords, c("please","airport","bial","will","can"))
-# #'
-# comments <- tm_map(comments,stemDocument)
-# #'
-# comments <- tm_map(comments , removeWords, stopwords("english"))
-# comments <- tm_map(comments , removeWords, c("please","airport","bial","will","can"))
-# #'
-# tdm <- TermDocumentMatrix(comments,control=list(weighting=weightTfIdf))
-# #'
-# tdm <- TermDocumentMatrix(comments)
-# m <- as.matrix(tdm)
-
-
-
-
-
-
-
+# v <- sort(rowSums(m),decreasing=TRUE)
+# head(v)
+# wordcloud(names(v),v,c(4,.2),2,200)
+# wordcloud(names(v),v,c(4,.2),2,100)
 
